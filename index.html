@@ -808,51 +808,89 @@ function toggleModule(header){
 
 /* ── FIREBASE / EFFECTIFS ── */
 const fbConfig={apiKey:"AIzaSyCX306kr0_uH0dgfHDvOttPtEtiWv3QBrE",authDomain:"operateur-tn.firebaseapp.com",projectId:"operateur-tn",storageBucket:"operateur-tn.firebasestorage.app",messagingSenderId:"953883311539",appId:"1:953883311539:web:1c51d320f36a55385d9fc6"};
-let db=null,fbActif=false;
-let local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+let db=null,fbActif=false,unsubscribe=null;
 
 function initFb(){
-  if(fbConfig.apiKey==="REMPLACE_MOI")return;
   try{
-    firebase.initializeApp(fbConfig);db=firebase.firestore();fbActif=true;
-    document.getElementById("fbStatus").textContent="FIREBASE";
-    document.getElementById("fbStatus").style.color="var(--vert)";
-    document.getElementById("fbStatus").style.borderColor="rgba(46,204,113,.4)";
-    document.getElementById("fbDot").classList.add("live");
-    document.getElementById("fbMsg").textContent="Firebase connecté — Données synchronisées en temps réel.";
-  }catch(e){console.error(e)}
+    firebase.initializeApp(fbConfig);
+    db=firebase.firestore();
+    fbActif=true;
+    // Listener temps réel — met à jour tous les membres instantanément
+    unsubscribe=db.collection("effectifs_tn_cic")
+      .orderBy("createdAt","desc")
+      .onSnapshot(snapshot=>{
+        const data=[];
+        snapshot.forEach(d=>data.push({id:d.id,...d.data()}));
+        render(data);
+      }, err=>{
+        console.warn("Snapshot error, fallback local:",err);
+        renderLocal();
+      });
+  }catch(e){
+    console.warn("Firebase init failed:",e);
+    renderLocal();
+  }
 }
 
-async function charger(){
-  let data=local;
-  if(fbActif&&db){const s=await db.collection("effectifs_tn_cic").orderBy("createdAt","desc").get();data=[];s.forEach(d=>data.push({id:d.id,...d.data()}))}
-  render(data);
+function renderLocal(){
+  const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+  render(local);
+}
+
+function charger(){
+  if(!fbActif||!db) renderLocal();
+  // Si Firebase actif, onSnapshot gère automatiquement
 }
 
 async function ajouter(){
   const nom=document.getElementById("nomInput").value.trim();
   const poste=document.getElementById("posteInput").value;
   const niveau=document.getElementById("niveauInput").value;
-  if(!nom){document.getElementById("nomInput").focus();return}
+  if(!nom){document.getElementById("nomInput").focus();return;}
   const e={nom,poste,niveau,createdAt:Date.now()};
-  if(fbActif&&db){await db.collection("effectifs_tn_cic").add(e)}
-  else{e.id=crypto.randomUUID?crypto.randomUUID():String(Date.now());local.unshift(e);save()}
-  document.getElementById("nomInput").value="";charger();
+  if(fbActif&&db){
+    try{
+      await db.collection("effectifs_tn_cic").add(e);
+      // onSnapshot met à jour automatiquement, pas besoin de charger()
+    }catch(err){
+      console.warn("Firebase ajouter failed:",err);
+      // Fallback local
+      const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+      e.id=crypto.randomUUID?crypto.randomUUID():String(Date.now());
+      local.unshift(e);
+      localStorage.setItem("effectifs_tn_cic",JSON.stringify(local));
+      renderLocal();
+    }
+  } else {
+    const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+    e.id=crypto.randomUUID?crypto.randomUUID():String(Date.now());
+    local.unshift(e);
+    localStorage.setItem("effectifs_tn_cic",JSON.stringify(local));
+    renderLocal();
+  }
+  document.getElementById("nomInput").value="";
 }
 
 async function supprimer(id){
-  if(!id){console.error("ID manquant");return;}
+  if(!id)return;
   if(fbActif&&db){
-    try{await db.collection("effectifs_tn_cic").doc(id).delete();}
-    catch(e){console.error("Erreur suppression Firebase:",e);}
+    try{
+      await db.collection("effectifs_tn_cic").doc(id).delete();
+      // onSnapshot met à jour automatiquement
+    }catch(err){
+      console.warn("Firebase supprimer failed:",err);
+      const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+      const updated=local.filter(e=>String(e.id)!==String(id));
+      localStorage.setItem("effectifs_tn_cic",JSON.stringify(updated));
+      renderLocal();
+    }
   } else {
-    local=local.filter(e=>String(e.id)!==String(id));
-    save();
+    const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
+    const updated=local.filter(e=>String(e.id)!==String(id));
+    localStorage.setItem("effectifs_tn_cic",JSON.stringify(updated));
+    renderLocal();
   }
-  charger();
 }
-
-function save(){localStorage.setItem("effectifs_tn_cic",JSON.stringify(local))}
 function nc(n){return n==="Formateur"?"formateur":n==="Responsable"?"responsable":"forme"}
 function fmtDate(ts){if(!ts)return"—";const d=new Date(ts);return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"2-digit"})}
 function esc(t){return String(t).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
@@ -934,7 +972,7 @@ document.addEventListener('click', e=>{
   if(m && e.target === m) closeModal();
 });
 
-window.addEventListener("load",()=>{boot();initFb();charger();applyAdminState();});
+window.addEventListener("load",()=>{boot();initFb();applyAdminState();});
 </script>
 </body>
 </html>
