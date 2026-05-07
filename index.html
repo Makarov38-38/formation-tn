@@ -809,7 +809,7 @@ function toggleModule(header){
 
 /* ── FIREBASE / EFFECTIFS ── */
 const fbConfig={apiKey:"AIzaSyDN0inm-nCx4iH0x1eHhlbbAeH7geUykA4",authDomain:"operateurtn.firebaseapp.com",projectId:"operateurtn",storageBucket:"operateurtn.firebasestorage.app",messagingSenderId:"927869914219",appId:"1:927869914219:web:77cc269b3b5176ff92352e"};
-let db=null,fbActif=false,unsubscribe=null;
+let db=null,fbActif=false,unsubscribe=null,lastData=[];
 
 function setFbStatus(ok, msg){
   const el = document.getElementById('fbStatus');
@@ -913,6 +913,7 @@ function fmtDate(ts){if(!ts)return"—";const d=new Date(ts);return d.toLocaleDa
 function esc(t){return String(t).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 
 function render(list){
+  lastData=list;
   document.getElementById("sTotal").textContent=list.length;
   document.getElementById("sTN").textContent=list.filter(e=>e.poste==="TN Mobile"||e.poste==="TN Mobile + C.I.C Fixe").length;
   const t=document.getElementById("tableau");
@@ -948,7 +949,7 @@ function applyAdminState(){
     btn.classList.remove('connected');
     if(panel) panel.style.display = 'none';
   }
-  charger();
+  if(lastData.length>0){render(lastData);}else{charger();}
 }
 
 function toggleAdmin(){
