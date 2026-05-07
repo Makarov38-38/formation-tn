@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -261,6 +262,43 @@ input::placeholder{color:var(--texte2)}
 footer{background:#000;border-top:1px solid var(--border);text-align:center;padding:48px 20px 28px}
 footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);letter-spacing:3px;font-size:10px}
 
+
+/* ── ADMIN ── */
+.admin-btn{
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
+  border:1px solid rgba(201,168,76,.35);color:var(--or);background:rgba(201,168,76,.05);
+  padding:7px 14px;border-radius:3px;cursor:pointer;transition:.2s;
+}
+.admin-btn:hover{background:rgba(201,168,76,.12)}
+.admin-btn.connected{border-color:rgba(46,204,113,.4);color:var(--vert);background:rgba(46,204,113,.05)}
+.modal-overlay{
+  position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.85);
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-box{
+  width:400px;max-width:92vw;background:var(--gris2);
+  border:1px solid rgba(78,201,176,.2);box-shadow:0 0 80px rgba(0,68,204,.4);padding:36px;
+}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;letter-spacing:2px;margin-bottom:4px}
+.modal-sub{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--texte2);margin-bottom:28px}
+.modal-label{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--texte2);margin-bottom:7px;display:block}
+.modal-field{margin-bottom:16px}
+.modal-inp{
+  width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  color:#fff;border-radius:4px;padding:12px 14px;outline:none;
+  font-family:'Exo 2',sans-serif;font-size:14px;
+}
+.modal-inp:focus{border-color:var(--or)}
+.modal-err{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--rouge);margin-bottom:14px;display:none}
+.modal-err.show{display:block}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+.modal-cancel{
+  font-family:'Rajdhani',sans-serif;background:transparent;border:1px solid var(--border);
+  color:var(--texte2);padding:10px 18px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:600;
+}
+.modal-cancel:hover{color:#fff;border-color:rgba(255,255,255,.2)}
 @media(max-width:850px){
   .nav-inner{height:auto;padding:14px 16px;flex-direction:column;gap:10px}
   .nav-links{flex-wrap:wrap;justify-content:center}
@@ -293,6 +331,27 @@ footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);lett
 <div id="app">
 
   <!-- NAV -->
+  <!-- MODAL CONNEXION ADMIN -->
+  <div class="modal-overlay" id="adminModal">
+    <div class="modal-box">
+      <div class="modal-title">ACCÈS ADMINISTRATEUR</div>
+      <div class="modal-sub">PANEL — GESTION DES EFFECTIFS</div>
+      <div class="modal-field">
+        <label class="modal-label">IDENTIFIANT</label>
+        <input class="modal-inp" id="adminId" type="text" placeholder="Identifiant" autocomplete="off" onkeydown="if(event.key==='Enter')tryLogin()">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">MOT DE PASSE</label>
+        <input class="modal-inp" id="adminPwd" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')tryLogin()">
+      </div>
+      <div class="modal-err" id="adminErr">Identifiant ou mot de passe incorrect.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeModal()">Annuler</button>
+        <button class="btn primary" style="padding:10px 22px" onclick="tryLogin()">Connexion</button>
+      </div>
+    </div>
+  </div>
+
   <nav>
     <div class="nav-tri"><span></span><span></span><span></span></div>
     <div class="nav-inner">
@@ -304,7 +363,7 @@ footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);lett
         <button class="nav-btn active" id="nav-accueil" onclick="goPage('accueil')">Accueil</button>
         <button class="nav-btn" id="nav-formation" onclick="goPage('formation')">Formation</button>
         <button class="nav-btn" id="nav-effectifs" onclick="goPage('effectifs')">Effectifs</button>
-        
+        <button class="admin-btn" id="adminBtn" onclick="toggleAdmin()">⬡ ADMIN</button>
       </div>
     </div>
   </nav>
@@ -683,6 +742,7 @@ footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);lett
         <div class="stat-box"><div class="stat-num" id="sTN" style="color:var(--bleu2)">0</div><div class="stat-label">OPÉRATEUR TN</div></div>
       </div>
 
+      <div id="adminPanel" style="display:none">
       <div class="panel">
         <div class="panel-title">AJOUTER UN OPÉRATEUR</div>
         <div class="form-row">
@@ -700,6 +760,7 @@ footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);lett
           <button class="btn primary" onclick="ajouter()">+ Ajouter</button>
         </div>
       </div>
+      </div><!-- /adminPanel -->
 
       <div class="table-wrap">
         <div class="table-head">
@@ -806,14 +867,74 @@ function render(list){
     <div><span class="badge badge-poste">${esc(e.poste||"TN")}</span></div>
     <div><span class="badge badge-${nc(e.niveau)}">${esc(e.niveau||"Formé")}</span></div>
     <div class="date-cell">${fmtDate(e.createdAt)}</div>
-    <div><button class="del-btn" data-id="${esc(e.id)}">Retirer</button></div>
+    <div>${adminConnected?`<button class="del-btn" data-id="${esc(e.id)}">Retirer</button>`:''}</div>
   </div>`).join("");
   t.querySelectorAll(".del-btn").forEach(btn=>{
     btn.addEventListener("click",()=>supprimer(btn.getAttribute("data-id")));
   });
 }
 
-window.addEventListener("load",()=>{boot();initFb();charger()});
+
+/* ═══ ADMIN AUTH ═══ */
+const ADMIN_ID  = '55930204';
+const ADMIN_PWD = '12CIATPP';
+let adminConnected = sessionStorage.getItem('admin_ok') === '1';
+
+function applyAdminState(){
+  const btn   = document.getElementById('adminBtn');
+  const panel = document.getElementById('adminPanel');
+  if(!btn) return;
+  if(adminConnected){
+    btn.textContent = '⬡ CONNECTÉ';
+    btn.classList.add('connected');
+    if(panel) panel.style.display = 'block';
+  } else {
+    btn.textContent = '⬡ ADMIN';
+    btn.classList.remove('connected');
+    if(panel) panel.style.display = 'none';
+  }
+  charger();
+}
+
+function toggleAdmin(){
+  if(adminConnected){
+    adminConnected = false;
+    sessionStorage.removeItem('admin_ok');
+    applyAdminState();
+  } else {
+    document.getElementById('adminId').value = '';
+    document.getElementById('adminPwd').value = '';
+    document.getElementById('adminErr').classList.remove('show');
+    document.getElementById('adminModal').classList.add('open');
+    setTimeout(()=>document.getElementById('adminId').focus(), 150);
+  }
+}
+
+function tryLogin(){
+  const id  = document.getElementById('adminId').value.trim();
+  const pwd = document.getElementById('adminPwd').value;
+  if(id === ADMIN_ID && pwd === ADMIN_PWD){
+    adminConnected = true;
+    sessionStorage.setItem('admin_ok','1');
+    closeModal();
+    applyAdminState();
+  } else {
+    document.getElementById('adminErr').classList.add('show');
+    document.getElementById('adminPwd').value = '';
+    document.getElementById('adminPwd').focus();
+  }
+}
+
+function closeModal(){
+  document.getElementById('adminModal').classList.remove('open');
+}
+
+document.addEventListener('click', e=>{
+  const m = document.getElementById('adminModal');
+  if(m && e.target === m) closeModal();
+});
+
+window.addEventListener("load",()=>{boot();initFb();charger();applyAdminState();});
 </script>
 </body>
 </html>
