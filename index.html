@@ -737,6 +737,7 @@ footer p{font-family:'Share Tech Mono',monospace;color:rgba(139,148,158,.6);lett
 
     <section class="section">
 
+      <div id="fbStatus" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--or);text-align:right;margin-bottom:10px;">⏳ CONNEXION FIREBASE...</div>
       <div class="stats">
         <div class="stat-box"><div class="stat-num" id="sTotal">0</div><div class="stat-label">TOTAL DES EFFECTIFS</div></div>
         <div class="stat-box"><div class="stat-num" id="sTN" style="color:var(--bleu2)">0</div><div class="stat-label">OPÉRATEUR TN</div></div>
@@ -810,24 +811,39 @@ function toggleModule(header){
 const fbConfig={apiKey:"AIzaSyCX306kr0_uH0dgfHDvOttPtEtiWv3QBrE",authDomain:"operateur-tn.firebaseapp.com",projectId:"operateur-tn",storageBucket:"operateur-tn.firebasestorage.app",messagingSenderId:"953883311539",appId:"1:953883311539:web:1c51d320f36a55385d9fc6"};
 let db=null,fbActif=false,unsubscribe=null;
 
+function setFbStatus(ok, msg){
+  const el = document.getElementById('fbStatus');
+  if(!el) return;
+  el.textContent = ok ? '🟢 FIREBASE CONNECTÉ' : '🔴 MODE LOCAL';
+  el.style.color = ok ? 'var(--vert)' : 'var(--or)';
+  el.title = msg||'';
+}
+
 function initFb(){
   try{
-    firebase.initializeApp(fbConfig);
-    db=firebase.firestore();
-    fbActif=true;
-    // Listener temps réel — met à jour tous les membres instantanément
-    unsubscribe=db.collection("effectifs_tn_cic")
+    // Evite "app already exists" si rechargé
+    if(!firebase.apps.length){
+      firebase.initializeApp(fbConfig);
+    }
+    db = firebase.apps[0].firestore();
+    fbActif = true;
+    setFbStatus(true, 'Connecté à Firebase Firestore');
+
+    unsubscribe = db.collection("effectifs_tn_cic")
       .orderBy("createdAt","desc")
       .onSnapshot(snapshot=>{
         const data=[];
         snapshot.forEach(d=>data.push({id:d.id,...d.data()}));
         render(data);
       }, err=>{
-        console.warn("Snapshot error, fallback local:",err);
+        console.warn("onSnapshot error:", err);
+        setFbStatus(false, err.message);
         renderLocal();
       });
   }catch(e){
-    console.warn("Firebase init failed:",e);
+    console.warn("Firebase init failed:", e);
+    setFbStatus(false, e.message);
+    fbActif = false;
     renderLocal();
   }
 }
@@ -851,9 +867,10 @@ async function ajouter(){
   if(fbActif&&db){
     try{
       await db.collection("effectifs_tn_cic").add(e);
-      // onSnapshot met à jour automatiquement, pas besoin de charger()
+      // onSnapshot met à jour automatiquement
     }catch(err){
-      console.warn("Firebase ajouter failed:",err);
+      console.warn("Firebase ajouter failed:", err);
+      setFbStatus(false, err.message);
       // Fallback local
       const local=JSON.parse(localStorage.getItem("effectifs_tn_cic")||"[]");
       e.id=crypto.randomUUID?crypto.randomUUID():String(Date.now());
